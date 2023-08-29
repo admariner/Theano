@@ -216,10 +216,16 @@ class T_function(unittest.TestCase):
         checkfor(self, lambda: function([In(a, name=[])], []), TypeError)
 
         def t():
-            f = function([In(a, name=set(['adsf', ()]), value=1.0),
-                          In(x, name=(), value=2.0),
-                          In(s, name=T.scalar(), value=3.0)], a + x + s)
+            f = function(
+                [
+                    In(a, name={'adsf', ()}, value=1.0),
+                    In(x, name=(), value=2.0),
+                    In(s, name=T.scalar(), value=3.0),
+                ],
+                a + x + s,
+            )
             return f
+
         checkfor(self, t, TypeError)
 
     def test_copy(self):
@@ -270,7 +276,7 @@ class T_function(unittest.TestCase):
             l = [val for key, val in storage_map_cpy.items()
                  if key not in i_o_variables or isinstance(key, theano.tensor.Constant)]
             for storage in l:
-                self.assertTrue(any([storage is s for s in ori_storages]))
+                self.assertTrue(any(storage is s for s in ori_storages))
 
             # Assert storages of SharedVariable without updates are shared
             for (input, _1, _2), here, there in zip(ori.indices,
@@ -319,7 +325,7 @@ class T_function(unittest.TestCase):
                 # y and y_rpl should not be updated
                 assert y_rpl.get_value() == 3
                 assert y.get_value() == 1
-            elif second_time:
+            else:
                 # doule update for sharedvariable
                 assert m.get_value() == 12
                 assert z.get_value() == 4
@@ -333,7 +339,7 @@ class T_function(unittest.TestCase):
             for key in cpy.fn.storage_map:
                 if key.name in names:
                     assert map_SV[key.name].container.storage[0] ==\
-                        cpy.fn.storage_map[key][0]
+                            cpy.fn.storage_map[key][0]
 
             second_time = True
 
@@ -562,11 +568,12 @@ class T_function(unittest.TestCase):
         func.fn.allow_gc = False
         func([1])
 
-        check_list = []
-        for key, val in iteritems(func.fn.storage_map):
-            if not isinstance(key, theano.gof.Constant):
-                check_list.append(val)
-        assert any([val[0] for val in check_list])
+        check_list = [
+            val
+            for key, val in iteritems(func.fn.storage_map)
+            if not isinstance(key, theano.gof.Constant)
+        ]
+        assert any(val[0] for val in check_list)
 
         func.free()
 
@@ -648,10 +655,14 @@ class T_picklefunction(unittest.TestCase):
         self.assertTrue(f.maker.fgraph.name == g.maker.fgraph.name)
         # print 'f.defaults = %s' % (f.defaults, )
         # print 'g.defaults = %s' % (g.defaults, )
-        self.assertTrue(all([f_req == g_req and f_feed == g_feed and
-                        f_val == g_val
-                        for ((f_req, f_feed, f_val), (g_req, g_feed, g_val)) in zip(
-                            f.defaults, g.defaults)]))
+        self.assertTrue(
+            all(
+                f_req == g_req and f_feed == g_feed and f_val == g_val
+                for ((f_req, f_feed, f_val), (g_req, g_feed, g_val)) in zip(
+                    f.defaults, g.defaults
+                )
+            )
+        )
 
         self.assertFalse(g.value[1] is f.value[1])  # should not have been copied
         self.assertFalse(g.value[2] is f.value[2])  # should have been copied because it is mutable.
@@ -706,11 +717,10 @@ class T_picklefunction(unittest.TestCase):
         f = function([x, In(a, value=h.container[a], implicit=True)], x + a)
 
         try:
-            memo = {}
             ac = copy.deepcopy(a)
-            memo.update({id(a): ac})
+            memo = {id(a): ac}
             hc = copy.deepcopy(h, memo=memo)
-            memo.update({id(h): hc})
+            memo[id(h)] = hc
             fc = copy.deepcopy(f, memo=memo)
         except NotImplementedError as e:
             if e[0].startswith('DebugMode is not picklable'):
@@ -770,17 +780,14 @@ class T_picklefunction(unittest.TestCase):
         old_default_opt = config.optimizer
         old_default_link = config.linker
         try:
-            try:
-                str_f = pickle.dumps(f, protocol=-1)
-                config.mode = 'Mode'
-                config.linker = 'py'
-                config.optimizer = 'None'
-                g = pickle.loads(str_f)
-                # print g.maker.mode
-                # print compile.mode.default_mode
-            except NotImplementedError as e:
-                if e[0].startswith('DebugMode is not pickl'):
-                    g = 'ok'
+            str_f = pickle.dumps(f, protocol=-1)
+            config.mode = 'Mode'
+            config.linker = 'py'
+            config.optimizer = 'None'
+            g = pickle.loads(str_f)
+        except NotImplementedError as e:
+            if e[0].startswith('DebugMode is not pickl'):
+                g = 'ok'
         finally:
             config.mode = old_default_mode
             config.optimizer = old_default_opt
@@ -807,10 +814,7 @@ class T_picklefunction(unittest.TestCase):
         v = T.vector('v')
 
         # put in some inputs
-        list_of_things = [s, x, v]
-
-        # some derived thing, whose inputs aren't all in the list
-        list_of_things.append(a * x + s)
+        list_of_things = [s, x, v, a * x + s]
 
         f1 = function([x, In(a, value=1.0, name='a'),
                        In(s, value=0.0, update=s + a * x, mutable=True)],
@@ -983,63 +987,62 @@ def test_sync_update():
         raise SkipTest("DEBUG_MODE forces synchronous behaviour "
                        "which breaks this test")
 
-    if theano.gpuarray.pygpu_activated:
-        sizes = [100, 500, 1000, 2000, 5000, 10000, 20000, 40000]
-        size = sizes[0]
-        w = theano.gpuarray.gpuarray_shared_constructor(
-            np.random.rand(size, size).astype('float32'), 'w',
-            target=theano.gpuarray.tests.config.test_ctx_name)
-        x = theano.gpuarray.gpuarray_shared_constructor(
-            np.random.rand(size, size).astype('float32'), 'x',
-            target=theano.gpuarray.tests.config.test_ctx_name)
+    if not theano.gpuarray.pygpu_activated:
+        raise SkipTest("Sync is only available when pygpu is activated.")
+    sizes = [100, 500, 1000, 2000, 5000, 10000, 20000, 40000]
+    size = sizes[0]
+    w = theano.gpuarray.gpuarray_shared_constructor(
+        np.random.rand(size, size).astype('float32'), 'w',
+        target=theano.gpuarray.tests.config.test_ctx_name)
+    x = theano.gpuarray.gpuarray_shared_constructor(
+        np.random.rand(size, size).astype('float32'), 'x',
+        target=theano.gpuarray.tests.config.test_ctx_name)
 
-        updates = [(w, w + np.asarray(0.001, 'float32') * T.dot(x, x))]
+    updates = [(w, w + np.asarray(0.001, 'float32') * T.dot(x, x))]
 
-        f = theano.function([], updates=updates,
-                            mode=theano.gpuarray.tests.config.mode_with_gpu)
-        assert len(f.maker.fgraph.apply_nodes) == 1
-        assert any(isinstance(n.op, theano.gpuarray.blas.GpuGemm)
-                   for n in f.maker.fgraph.apply_nodes)
-        # Make sure libgpuarray have compile all kernels
+    f = theano.function([], updates=updates,
+                        mode=theano.gpuarray.tests.config.mode_with_gpu)
+    assert len(f.maker.fgraph.apply_nodes) == 1
+    assert any(isinstance(n.op, theano.gpuarray.blas.GpuGemm)
+               for n in f.maker.fgraph.apply_nodes)
+    # Make sure libgpuarray have compile all kernels
+    f()
+    f.sync_shared()
+
+    # Find a good size that will take about .5s.
+    # This is to make the test more stable across different GPUs.
+    size = sizes[-1]
+    for i in sizes:
+        data = np.random.rand(i, i).astype('float32')
+        w.set_value(data)
+        x.set_value(data)
+        t0 = time.time()
         f()
         f.sync_shared()
+        t1 = time.time()
+        if (t1 - t0) < 0.5:
+            continue
+        size = i
+        break
+    # sync to make sure all computation are done
+    f.sync_shared()
 
-        # Find a good size that will take about .5s.
-        # This is to make the test more stable across different GPUs.
-        size = sizes[-1]
-        for i in sizes:
-            data = np.random.rand(i, i).astype('float32')
-            w.set_value(data)
-            x.set_value(data)
-            t0 = time.time()
-            f()
-            f.sync_shared()
-            t1 = time.time()
-            if (t1 - t0) < 0.5:
-                continue
-            size = i
-            break
-        # sync to make sure all computation are done
+    t_0 = time.time()
+    for _ in range(3):
+        f()
+        # Sync after each call to see the slowdown from sync.
         f.sync_shared()
-
-        t_0 = time.time()
-        for i in range(3):
-            f()
-            # Sync after each call to see the slowdown from sync.
-            f.sync_shared()
-            time.sleep(.5)
-        t_1 = time.time()
-        for i in range(3):
-            f()
-            time.sleep(.5)
-        f.sync_shared()
-        # Sync to make sure all computation are finished.
-        t_2 = time.time()
-        d1 = (t_1 - t_0)
-        d2 = (t_2 - t_1)
-        assert d1 > d2, (d1, d2)
-    else:
-        raise SkipTest("Sync is only available when pygpu is activated.")
+        time.sleep(.5)
+    t_1 = time.time()
+    for _ in range(3):
+        f()
+        time.sleep(.5)
+    f.sync_shared()
+    # Sync to make sure all computation are finished.
+    t_2 = time.time()
+    d1 = (t_1 - t_0)
+    d2 = (t_2 - t_1)
+    assert d1 > d2, (d1, d2)
 
 
 if __name__ == '__main__':

@@ -48,17 +48,21 @@ train = theano.function(
 predict = theano.function(inputs=[], outputs=prediction,
             name="predict")
 
-if any([n.op.__class__.__name__ in ['Gemv', 'CGemv', 'Gemm', 'CGemm'] for n in
-train.maker.fgraph.toposort()]):
+if any(
+    n.op.__class__.__name__ in ['Gemv', 'CGemv', 'Gemm', 'CGemm']
+    for n in train.maker.fgraph.toposort()
+):
     print('Used the cpu')
-elif any([n.op.__class__.__name__ in ['GpuGemm', 'GpuGemv'] for n in
-train.maker.fgraph.toposort()]):
+elif any(
+    n.op.__class__.__name__ in ['GpuGemm', 'GpuGemv']
+    for n in train.maker.fgraph.toposort()
+):
     print('Used the gpu')
 else:
     print('ERROR, not able to tell if theano used the cpu or the gpu')
     print(train.maker.fgraph.toposort())
 
-for i in range(training_steps):
+for _ in range(training_steps):
     pred, err = train()
 #print "Final model:"
 #print w.get_value(), b.get_value()

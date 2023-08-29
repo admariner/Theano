@@ -34,16 +34,14 @@ predefined_linkers = {
 def register_linker(name, linker):
     """Add a `Linker` which can be referred to by `name` in `Mode`."""
     if name in predefined_linkers:
-        raise ValueError('Linker name already taken: %s' % name)
+        raise ValueError(f'Linker name already taken: {name}')
     predefined_linkers[name] = linker
 
 
 # If a string is passed as the optimizer argument in the constructor
 # for Mode, it will be used as the key to retrieve the real optimizer
 # in this dictionary
-exclude = []
-if not theano.config.cxx:
-    exclude = ['cxx_only']
+exclude = ['cxx_only'] if not theano.config.cxx else []
 OPT_NONE = gof.Query(include=[], exclude=exclude)
 # Even if multiple merge optimizer call will be there, this shouldn't
 # impact performance.
@@ -92,7 +90,7 @@ predefined_optimizers = {
 def register_optimizer(name, opt):
     """Add a `Optimizer` which can be referred to by `name` in `Mode`."""
     if name in predefined_optimizers:
-        raise ValueError('Optimizer name already taken: %s' % name)
+        raise ValueError(f'Optimizer name already taken: {name}')
     predefined_optimizers[name] = opt
 
 
@@ -112,11 +110,9 @@ class AddDestroyHandler(gof.Optimizer):
 
     """
     def apply(self, fgraph):
-        supervisor_added = False
-        for feature in fgraph._features:
-            if isinstance(feature, Supervisor):
-                supervisor_added = True
-                break
+        supervisor_added = any(
+            isinstance(feature, Supervisor) for feature in fgraph._features
+        )
         if not supervisor_added:
             warnings.warn("WARNING: Supervisor is not added. Please build a FunctionGraph"
                           "via theano.compile.function_module.std_graph()"
@@ -293,9 +289,7 @@ class Mode(object):
         self.fn_time = 0
 
     def __str__(self):
-        return "%s(linker = %s, optimizer = %s)" % (self.__class__.__name__,
-                                                    self.provided_linker,
-                                                    self.provided_optimizer)
+        return f"{self.__class__.__name__}(linker = {self.provided_linker}, optimizer = {self.provided_optimizer})"
 
     def __get_optimizer(self):
         if isinstance(self._optimizer, gof.Query):
@@ -369,9 +363,7 @@ class Mode(object):
 
         if optimizer == "":
             optimizer = self.provided_optimizer
-        new_mode = type(self)(linker=new_linker,
-                              optimizer=optimizer)
-        return new_mode
+        return type(self)(linker=new_linker, optimizer=optimizer)
 
 
 # If a string is passed as the mode argument in function or
@@ -393,10 +385,7 @@ instantiated_default_mode = None
 
 
 def get_mode(orig_string):
-    if orig_string is None:
-        string = config.mode
-    else:
-        string = orig_string
+    string = config.mode if orig_string is None else orig_string
     if not isinstance(string, string_types):
         return string  # it is hopefully already a mode...
 
@@ -430,7 +419,7 @@ def get_mode(orig_string):
     elif string in predefined_modes:
         ret = predefined_modes[string]
     else:
-        raise Exception("No predefined mode exist for string: %s" % string)
+        raise Exception(f"No predefined mode exist for string: {string}")
 
     if orig_string is None:
         # Build and cache the default mode
@@ -455,5 +444,5 @@ def register_mode(name, mode):
 
     """
     if name in predefined_modes:
-        raise ValueError('Mode name already taken: %s' % name)
+        raise ValueError(f'Mode name already taken: {name}')
     predefined_modes[name] = mode

@@ -43,9 +43,8 @@ class NoDuplicateOptWarningFilter(logging.Filter):
         if msg.startswith('Optimization Warning: '):
             if msg in self.prev_msgs:
                 return False
-            else:
-                self.prev_msgs.add(msg)
-                return True
+            self.prev_msgs.add(msg)
+            return True
         return True
 
 _logger.addFilter(NoDuplicateOptWarningFilter())
@@ -142,7 +141,7 @@ class BadThunkOutput(DebugModeError):
                 scalar_values.append(ipt)
             else:
                 scalar_values.append("not shown")
-        print("  Inputs values: %s" % scalar_values, file=sio)
+        print(f"  Inputs values: {scalar_values}", file=sio)
         print("  Bad Variable:", self.r, file=sio)
         print("  thunk1  :", self.thunk1, file=sio)
         print("  thunk2  :", self.thunk2, file=sio)
@@ -150,8 +149,7 @@ class BadThunkOutput(DebugModeError):
         # Don't import it at the top of the file to prevent circular import.
         import theano.tests.unittest_tools as utt
         print(utt.str_diagnostic(self.val1, self.val2, None, None), file=sio)
-        ret = sio.getvalue()
-        return ret
+        return sio.getvalue()
 
 
 class BadOptimization(DebugModeError, theano.gof.toolbox.BadOptimization):
@@ -209,7 +207,7 @@ class BadDestroyMap(DebugModeError):
                   np.transpose(np.nonzero(delta))[:10], file=sio)
             print("", file=sio)
         except Exception as e:
-            print("(Numpy-hints failed with: %s)" % str(e), file=sio)
+            print(f"(Numpy-hints failed with: {str(e)})", file=sio)
         print("  Hint: this can also be caused by a deficient "
               "values_eq_approx() or __eq__() implementation "
               "[which compared input values]", file=sio)
@@ -302,7 +300,7 @@ class InvalidValueError(DebugModeError):
         r, v = self.r, self.v
         type_r = r.type
         type_v = type(v)
-        v_val = str(v)[0:100]
+        v_val = str(v)[:100]
         v_dtype = 'N/A'
         v_shape = 'N/A'
         v_min = 'N/A'
@@ -353,11 +351,7 @@ def char_from_number(number):
 
     base = 26
 
-    rval = ""
-
-    if number == 0:
-        rval = 'A'
-
+    rval = 'A' if number == 0 else ""
     while number != 0:
         remainder = number % base
         new_char = chr(ord('A') + remainder)
@@ -430,21 +424,17 @@ def debugprint(r, prefix='', depth=-1, done=None, print_type=False,
         order = []
 
     if done is None:
-        done = dict()
+        done = {}
 
     if scan_ops is None:
         scan_ops = []
 
-    if print_type:
-        type_str = ' <%s>' % r.type
-    else:
-        type_str = ''
-
+    type_str = f' <{r.type}>' if print_type else ''
     if prefix_child is None:
         prefix_child = prefix
 
     if used_ids is None:
-        used_ids = dict()
+        used_ids = {}
 
     def get_id_str(obj, get_printed=True):
         if obj in used_ids:
@@ -452,11 +442,11 @@ def debugprint(r, prefix='', depth=-1, done=None, print_type=False,
         elif obj == 'output':
             id_str = 'output'
         elif ids == "id":
-            id_str = "[id %s]" % str(id(r))
+            id_str = f"[id {id(r)}]"
         elif ids == "int":
-            id_str = "[id %s]" % str(len(used_ids))
+            id_str = f"[id {str(len(used_ids))}]"
         elif ids == "CHAR":
-            id_str = "[id %s]" % char_from_number(len(used_ids))
+            id_str = f"[id {char_from_number(len(used_ids))}]"
         elif ids == "":
             id_str = ""
         if get_printed:
@@ -485,9 +475,9 @@ def debugprint(r, prefix='', depth=-1, done=None, print_type=False,
         else:
             view_map_str = ''
         if destroy_map_str and destroy_map_str != '{}':
-            destroy_map_str = 'd=' + destroy_map_str
+            destroy_map_str = f'd={destroy_map_str}'
         if view_map_str and view_map_str != '{}':
-            view_map_str = 'v=' + view_map_str
+            view_map_str = f'v={view_map_str}'
 
         o = ''
         if order:
@@ -496,10 +486,7 @@ def debugprint(r, prefix='', depth=-1, done=None, print_type=False,
         already_printed = a in done  # get_id_str put it in the dict
         id_str = get_id_str(a)
 
-        if len(a.outputs) == 1:
-            idx = ""
-        else:
-            idx = ".%i" % a.outputs.index(r)
+        idx = "" if len(a.outputs) == 1 else ".%i" % a.outputs.index(r)
         data = ""
         if smap:
             data = " " + str(smap.get(a.outputs[0], ''))
@@ -510,8 +497,8 @@ def debugprint(r, prefix='', depth=-1, done=None, print_type=False,
                     return order.index(c)
                 except ValueError:
                     return ""
-            clients = " clients:" + str([(get_id_str(c, False), get_index(c))
-                                         for c, i in r.clients])
+
+            clients = f" clients:{str([(get_id_str(c, False), get_index(c)) for c, i in r.clients])}"
         if profile is None or a not in profile.apply_time:
             print('%s%s%s %s%s \'%s\' %s %s %s%s%s' % (prefix, a.op,
                                                        idx,
@@ -527,10 +514,7 @@ def debugprint(r, prefix='', depth=-1, done=None, print_type=False,
             tot_time = tot_time_dict[a]
             tot_time_percent = (tot_time_dict[a] / profile.fct_call_time) * 100
 
-            if len(a.outputs) == 1:
-                idx = ""
-            else:
-                idx = ".%i" % a.outputs.index(r)
+            idx = "" if len(a.outputs) == 1 else ".%i" % a.outputs.index(r)
             print("%s%s%s %s%s '%s' %s %s %s%s%s --> "
                   "%8.2es %4.1f%% %8.2es %4.1f%%"
                   % (prefix, a.op,
@@ -548,12 +532,12 @@ def debugprint(r, prefix='', depth=-1, done=None, print_type=False,
         if not already_printed:
             if (not stop_on_name or
                     not (hasattr(r, 'name') and r.name is not None)):
-                new_prefix = prefix_child + ' |'
-                new_prefix_child = prefix_child + ' |'
+                new_prefix = f'{prefix_child} |'
+                new_prefix_child = f'{prefix_child} |'
 
                 for idx, i in enumerate(a.inputs):
                     if idx == len(a.inputs) - 1:
-                        new_prefix_child = prefix_child + '  '
+                        new_prefix_child = f'{prefix_child}  '
 
                     if hasattr(i, 'owner') and hasattr(i.owner, 'op'):
                         if isinstance(i.owner.op,
@@ -579,8 +563,7 @@ def debugprint(r, prefix='', depth=-1, done=None, print_type=False,
                 outer_id_str = get_id_str(outer_r.owner)
             else:
                 outer_id_str = get_id_str(outer_r)
-            print('%s%s %s%s -> %s' % (prefix, r, id_str, type_str,
-                                       outer_id_str), file=file)
+            print(f'{prefix}{r} {id_str}{type_str} -> {outer_id_str}', file=file)
         else:
             # this is an input variable
             data = ""

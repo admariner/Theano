@@ -94,10 +94,7 @@ class PyDotFormatter(object):
         str
             Unique node id.
         """
-        if node in self.__nodes:
-            return self.__nodes[node]
-        else:
-            return self.__add_node(node)
+        return self.__nodes[node] if node in self.__nodes else self.__add_node(node)
 
     def __call__(self, fct, graph=None):
         """Create pydot graph from function.
@@ -187,17 +184,17 @@ class PyDotFormatter(object):
 
                 edge_params = {}
                 if hasattr(node.op, 'view_map') and \
-                        id in reduce(list.__add__,
+                            id in reduce(list.__add__,
                                      itervalues(node.op.view_map), []):
                     edge_params['color'] = self.node_colors['output']
                 elif hasattr(node.op, 'destroy_map') and \
-                        id in reduce(list.__add__,
+                            id in reduce(list.__add__,
                                      itervalues(node.op.destroy_map), []):
                     edge_params['color'] = 'red'
 
                 edge_label = vparams['dtype']
                 if len(node.inputs) > 1:
-                    edge_label = str(id) + ' ' + edge_label
+                    edge_label = f'{str(id)} {edge_label}'
                 pdedge = pd.Edge(var_id, __node_id, label=edge_label,
                                  **edge_params)
                 graph.add_edge(pdedge)
@@ -282,18 +279,22 @@ def var_label(var, precision=3):
 def var_tag(var):
     """Parse tag attribute of variable node."""
     tag = var.tag
-    if hasattr(tag, 'trace') and len(tag.trace) and len(tag.trace[0]) == 4:
-        if isinstance(tag.trace[0][0], (tuple, list)):
-            path, line, _, src = tag.trace[0][-1]
-        else:
-            path, line, _, src = tag.trace[0]
-        path = os.path.basename(path)
-        path = path.replace('<', '')
-        path = path.replace('>', '')
-        src = src.encode()
-        return [path, line, src]
-    else:
+    if (
+        not hasattr(tag, 'trace')
+        or not len(tag.trace)
+        or len(tag.trace[0]) != 4
+    ):
         return None
+    path, line, _, src = (
+        tag.trace[0][-1]
+        if isinstance(tag.trace[0][0], (tuple, list))
+        else tag.trace[0]
+    )
+    path = os.path.basename(path)
+    path = path.replace('<', '')
+    path = path.replace('>', '')
+    src = src.encode()
+    return [path, line, src]
 
 
 def apply_label(node):
@@ -317,11 +318,7 @@ def broadcastable_to_str(b):
                            (False, True): 'col',
                            (True, False): 'row',
                            (False, False): 'matrix'}
-    if b in named_broadcastable:
-        bcast = named_broadcastable[b]
-    else:
-        bcast = ''
-    return bcast
+    return named_broadcastable.get(b, '')
 
 
 def dtype_to_char(dtype):
@@ -335,10 +332,7 @@ def dtype_to_char(dtype):
         'int16': 'w',
         'int32': 'i',
         'int64': 'l'}
-    if dtype in dtype_char:
-        return dtype_char[dtype]
-    else:
-        return 'X'
+    return dtype_char.get(dtype, 'X')
 
 
 def type_to_str(t):
@@ -346,24 +340,17 @@ def type_to_str(t):
     if not hasattr(t, 'broadcastable'):
         return str(t)
     s = broadcastable_to_str(t.broadcastable)
-    if s == '':
-        s = str(t.dtype)
-    else:
-        s = dtype_to_char(t.dtype) + s
+    s = str(t.dtype) if s == '' else dtype_to_char(t.dtype) + s
     return s
 
 
 def dict_to_pdnode(d):
     """Create pydot node from dict."""
-    e = dict()
+    e = {}
     for k, v in iteritems(d):
         if v is not None:
-            if isinstance(v, list):
-                v = '\t'.join([str(x) for x in v])
-            else:
-                v = str(v)
-            v = str(v)
+            v = '\t'.join([str(x) for x in v]) if isinstance(v, list) else str(v)
+            v = v
             v = v.replace('"', '\'')
             e[k] = v
-    pynode = pd.Node(**e)
-    return pynode
+    return pd.Node(**e)

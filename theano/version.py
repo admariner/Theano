@@ -22,8 +22,5 @@ try:
 except ValueError:
     release = False
 
-if release and info['error'] is None:
-    version = short_version
-else:
-    version = full_version
+version = short_version if release and info['error'] is None else full_version
 del info

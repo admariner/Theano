@@ -117,11 +117,7 @@ def _contains_cycle(fgraph, orderings):
     # node_to_children
     for var in fgraph.variables:
 
-        # this is faster than calling get_parents
-        owner = var.owner
-        # variables don't appear in orderings, so we don't need to worry
-        # about that here
-        if owner:
+        if owner := var.owner:
             # insert node in node_to_children[r]
             # (if r is not already in node_to_children,
             # intialize it to [])
@@ -203,8 +199,7 @@ def _build_droot_impact(destroy_handler):
             input_root = r
 
             if input_root in droot:
-                raise InconsistencyError(
-                    "Multiple destroyers of %s" % input_root)
+                raise InconsistencyError(f"Multiple destroyers of {input_root}")
             droot[input_root] = input_root
             root_destroyer[input_root] = app
 
@@ -473,11 +468,12 @@ class DestroyHandler(toolbox.Bookkeeper):  # noqa
             inp = app.inputs[inp_idx]
             if getattr(inp.tag, 'indestructible', False) or isinstance(inp, graph.Constant):
                 self.fail_validate[app] = InconsistencyError(
-                    "Attempting to destroy indestructible variables: %s" %
-                    inp)
+                    f"Attempting to destroy indestructible variables: {inp}"
+                )
             elif len(inp.clients) > 1:
                 self.fail_validate[app] = theano.gof.InconsistencyError(
-                    "Destroyed variable has more than one client. " + str(reason))
+                    f"Destroyed variable has more than one client. {str(reason)}"
+                )
             elif inp.owner:
                 app2 = inp.owner
                 inp_idx2 = app2.outputs.index(inp)
@@ -487,12 +483,14 @@ class DestroyHandler(toolbox.Bookkeeper):  # noqa
                     v = v.get(inp_idx2, [])
                     if len(v) > 0:
                         self.fail_validate[app] = theano.gof.InconsistencyError(
-                            "Destroyed variable has view_map. " + str(reason))
+                            f"Destroyed variable has view_map. {str(reason)}"
+                        )
                 elif d:
                     d = d.get(inp_idx2, [])
                     if len(d) > 0:
                         self.fail_validate[app] = theano.gof.InconsistencyError(
-                            "Destroyed variable has destroy_map. " + str(reason))
+                            f"Destroyed variable has destroy_map. {str(reason)}"
+                        )
 
                 # These 2 assertions are commented since this function is called so many times
                 # but they should be true.
@@ -529,11 +527,11 @@ class DestroyHandler(toolbox.Bookkeeper):  # noqa
             self.view_o.setdefault(i, OrderedSet()).add(o)
 
         # update self.clients
-        for i, input in enumerate(app.inputs):
+        for input in app.inputs:
             self.clients.setdefault(input, OrderedDict()).setdefault(app, 0)
             self.clients[input][app] += 1
 
-        for i, output in enumerate(app.outputs):
+        for output in app.outputs:
             self.clients.setdefault(output, OrderedDict())
 
         self.stale_droot = True
@@ -582,11 +580,7 @@ class DestroyHandler(toolbox.Bookkeeper):  # noqa
         app.inputs[i] changed from old_r to new_r.
 
         """
-        if app == 'output':
-            # app == 'output' is special key that means FunctionGraph is redefining which nodes are being
-            # considered 'outputs' of the graph.
-            pass
-        else:
+        if app != 'output':
             if app not in self.debug_all_apps:
                 raise ProtocolError("change without import")
 
@@ -605,11 +599,11 @@ class DestroyHandler(toolbox.Bookkeeper):  # noqa
                     # destroying this output invalidates multiple inputs
                     raise NotImplementedError()
                 i_idx = i_idx_list[0]
-                output = app.outputs[o_idx]
                 if i_idx == i:
                     if app.inputs[i_idx] is not new_r:
                         raise ProtocolError("wrong new_r on change")
 
+                    output = app.outputs[o_idx]
                     self.view_i[output] = new_r
 
                     self.view_o[old_r].remove(output)
@@ -648,25 +642,13 @@ class DestroyHandler(toolbox.Bookkeeper):  # noqa
                     for app in app_err_pairs:
                         if app in fgraph.apply_nodes:
                             self.fast_destroy(app, 'validate')
-                    if self.fail_validate:
-                        self.fail_validate = app_err_pairs
-                        raise app_err_pairs[app]
+                if self.fail_validate:
+                    self.fail_validate = app_err_pairs
+                    raise app_err_pairs[app]
             else:
                 ords = self.orderings(fgraph, ordered=False)
                 if _contains_cycle(fgraph, ords):
                     raise InconsistencyError("Dependency graph contains cycles")
-        else:
-            # James's Conjecture:
-            # If there are no destructive ops, then there can be no cycles.
-
-            # FB: This isn't always True. It can happened that
-            # optimization introduce node that depend on itself. This
-            # is very rare and should not happen in general. It will be
-            # caught later. The error will be far from the source. But
-            # doing this conjecture should speed up compilation most of
-            # the time. The user should create such dependency except
-            # if he mess too much with the internal.
-            pass
         return True
 
     def orderings(self, fgraph, ordered=True):
@@ -684,7 +666,7 @@ class DestroyHandler(toolbox.Bookkeeper):  # noqa
             rval = OrderedDict()
         else:
             set_type = set
-            rval = dict()
+            rval = {}
 
         if self.destroyers:
             # BUILD DATA STRUCTURES
@@ -692,14 +674,15 @@ class DestroyHandler(toolbox.Bookkeeper):  # noqa
 
             droot, impact, __ignore = self.refresh_droot_impact()
 
-            # check for destruction of constants
-            illegal_destroy = [r for r in droot if
-                               getattr(r.tag, 'indestructible', False) or
-                               isinstance(r, graph.Constant)]
-            if illegal_destroy:
+            if illegal_destroy := [
+                r
+                for r in droot
+                if getattr(r.tag, 'indestructible', False)
+                or isinstance(r, graph.Constant)
+            ]:
                 raise InconsistencyError(
-                    "Attempting to destroy indestructible variables: %s" %
-                    illegal_destroy)
+                    f"Attempting to destroy indestructible variables: {illegal_destroy}"
+                )
 
             # add destroyed variable clients as computational dependencies
             for app in self.destroyers:
@@ -749,19 +732,25 @@ class DestroyHandler(toolbox.Bookkeeper):  # noqa
                     tolerate_same = getattr(app.op,
                                             'destroyhandler_tolerate_same', [])
                     assert isinstance(tolerate_same, list)
-                    tolerated = set(idx1 for idx0, idx1 in tolerate_same
-                                    if idx0 == destroyed_idx)
+                    tolerated = {
+                        idx1
+                        for idx0, idx1 in tolerate_same
+                        if idx0 == destroyed_idx
+                    }
                     tolerated.add(destroyed_idx)
                     tolerate_aliased = getattr(
                         app.op, 'destroyhandler_tolerate_aliased', [])
                     assert isinstance(tolerate_aliased, list)
-                    ignored = set(idx1 for idx0, idx1 in tolerate_aliased
-                                  if idx0 == destroyed_idx)
+                    ignored = {
+                        idx1
+                        for idx0, idx1 in tolerate_aliased
+                        if idx0 == destroyed_idx
+                    }
                     for i, input in enumerate(app.inputs):
                         if i in ignored:
                             continue
                         if input in root_impact \
-                                and (i not in tolerated or
+                                    and (i not in tolerated or
                                      input is not destroyed_variable):
                             raise InconsistencyError("Input aliasing: %s (%i, %i)"
                                                      % (app, destroyed_idx, i))

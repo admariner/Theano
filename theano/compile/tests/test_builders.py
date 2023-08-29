@@ -37,8 +37,8 @@ class T_OpFromGraph(unittest_tools.InferShapeTester):
         # print function, function.__module__
         # print fn.maker.fgraph.toposort()
         fn(xv, yv, zv)
-        assert np.all(8.0 == fn(xv, yv, zv))
-        assert np.all(8.0 == fn(xv, yv, zv))
+        assert np.all(fn(xv, yv, zv) == 8.0)
+        assert np.all(fn(xv, yv, zv) == 8.0)
 
     @test_params
     def test_size_changes(self, cls_ofg):
@@ -52,10 +52,10 @@ class T_OpFromGraph(unittest_tools.InferShapeTester):
         zv = np.ones((4, 5), dtype=config.floatX) * 5
         res = fn(xv, yv, zv)
         assert res.shape == (2, 5)
-        assert np.all(180.0 == res)
+        assert np.all(res == 180.0)
         res = fn(xv, yv, zv)
         assert res.shape == (2, 5)
-        assert np.all(180.0 == res)
+        assert np.all(res == 180.0)
 
     @test_params
     def test_grad(self, cls_ofg):
@@ -68,7 +68,7 @@ class T_OpFromGraph(unittest_tools.InferShapeTester):
         xv = np.ones((2, 2), dtype=config.floatX)
         yv = np.ones((2, 2), dtype=config.floatX) * 3
         zv = np.ones((2, 2), dtype=config.floatX) * 5
-        assert np.all(11.0 == fn(xv, yv, zv))
+        assert np.all(fn(xv, yv, zv) == 11.0)
 
     @test_params
     def test_grad_grad(self, cls_ofg):

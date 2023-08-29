@@ -52,8 +52,9 @@ def compile_cutils():
         # This is not the most efficient code, but it is written this way to
         # highlight the changes needed to make 2.x code compile under python 3.
         code = code.replace("<Python.h>", '"numpy/npy_3kcompat.h"', 1)
-        code = code.replace("PyCObject", "NpyCapsule")
-        code += """
+        code = (
+            code.replace("PyCObject", "NpyCapsule")
+            + """
         static struct PyModuleDef moduledef = {
             PyModuleDef_HEAD_INIT,
             "cutils_ext",
@@ -68,6 +69,7 @@ def compile_cutils():
         }
         }
         """
+        )
     else:
         code += """
         PyMODINIT_FUNC
@@ -116,15 +118,14 @@ try:
     # directory. This is important to prevent multiple processes from trying to
     # compile the cutils_ext module simultaneously.
         try:
-            try:
-                # We must retry to import it as some other process could
-                # have been compiling it between the first failed import
-                # and when we receive the lock
-                from cutils_ext.cutils_ext import *  # noqa
-            except ImportError:
+            # We must retry to import it as some other process could
+            # have been compiling it between the first failed import
+            # and when we receive the lock
+            from cutils_ext.cutils_ext import *  # noqa
+        except ImportError:
 
-                compile_cutils()
-                from cutils_ext.cutils_ext import *  # noqa
+            compile_cutils()
+            from cutils_ext.cutils_ext import *  # noqa
 
         finally:
             # Release lock on compilation directory.

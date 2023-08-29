@@ -158,10 +158,7 @@ if (config.device.startswith('cuda') or
 # Use config.numpy to call numpy.seterr
 import numpy as np
 
-if config.numpy.seterr_all == 'None':
-    _all = None
-else:
-    _all = config.numpy.seterr_all
+_all = None if config.numpy.seterr_all == 'None' else config.numpy.seterr_all
 if config.numpy.seterr_divide == 'None':
     _divide = None
 else:
@@ -240,8 +237,7 @@ def sparse_grad(var):
     .. versionadded:: 0.6rc4
     """
     assert isinstance(var.owner.op, tensor.AdvancedSubtensor1)
-    ret = var.owner.op.__class__(sparse_grad=True)(*var.owner.inputs)
-    return ret
+    return var.owner.op.__class__(sparse_grad=True)(*var.owner.inputs)
 
 
 __import__('theano.tensor.shared_randomstreams')

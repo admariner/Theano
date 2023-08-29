@@ -74,7 +74,7 @@ def debug_counter(name, every=1):
     setattr(debug_counter, name, getattr(debug_counter, name, 0) + 1)
     n = getattr(debug_counter, name)
     if n % every == 0:
-        print("debug_counter [%s]: %s" % (name, n), file=sys.stderr)
+        print(f"debug_counter [{name}]: {n}", file=sys.stderr)
 
 
 class ExtFunction(object):
@@ -175,8 +175,11 @@ static struct PyModuleDef moduledef = {{
                   self.hash_placeholder), file=stream)
             for block in self.init_blocks:
                 print('  ', block, file=stream)
-            print('  ', ('(void) Py_InitModule("%s", MyMethods);'
-                  % self.hash_placeholder), file=stream)
+            print(
+                '  ',
+                f'(void) Py_InitModule("{self.hash_placeholder}", MyMethods);',
+                file=stream,
+            )
         print("}", file=stream)
 
     def add_include(self, str):
@@ -201,10 +204,10 @@ static struct PyModuleDef moduledef = {{
         for inc in self.includes:
             if not inc:
                 continue
-            if inc[0] == '<' or inc[0] == '"':
+            if inc[0] in ['<', '"']:
                 print("#include", inc, file=sio)
             else:
-                print('#include "%s"' % inc, file=sio)
+                print(f'#include "{inc}"', file=sio)
 
         print("//////////////////////", file=sio)
         print("////  Support Code", file=sio)
@@ -304,7 +307,7 @@ def dlimport(fullpath, suffix=None):
     _logger.debug("WORKDIR %s", workdir)
     _logger.debug("module_name %s", module_name)
 
-    sys.path[0:0] = [workdir]  # insert workdir at beginning (temporarily)
+    sys.path[:0] = [workdir]
     global import_time
     try:
         if importlib is not None:
@@ -359,7 +362,7 @@ def module_name_from_dir(dirname, err=True, files=None):
                 return None
     names = [file for file in files
              if file.endswith('.so') or file.endswith('.pyd')]
-    if len(names) == 0 and not err:
+    if not names and not err:
         return None
     elif len(names) == 1:
         return os.path.join(dirname, names[0])
@@ -382,12 +385,16 @@ def is_same_entry(entry_1, entry_2):
         return True
     if os.path.realpath(entry_1) == os.path.realpath(entry_2):
         return True
-    if (os.path.basename(entry_1) == os.path.basename(entry_2) and
-            (os.path.basename(os.path.dirname(entry_1)) ==
-             os.path.basename(os.path.dirname(entry_2))) and
-            os.path.basename(os.path.dirname(entry_1)).startswith('tmp')):
-        return True
-    return False
+    return bool(
+        (
+            os.path.basename(entry_1) == os.path.basename(entry_2)
+            and (
+                os.path.basename(os.path.dirname(entry_1))
+                == os.path.basename(os.path.dirname(entry_2))
+            )
+            and os.path.basename(os.path.dirname(entry_1)).startswith('tmp')
+        )
+    )
 
 
 def get_module_hash(src_code, key):
@@ -575,10 +582,11 @@ class KeyData(object):
                 # this process execution.
                 pass
         if do_manual_check:
-            to_del = []
-            for key, key_entry in iteritems(entry_from_key):
-                if key_entry == entry:
-                    to_del.append(key)
+            to_del = [
+                key
+                for key, key_entry in iteritems(entry_from_key)
+                if key_entry == entry
+            ]
             for key in to_del:
                 try:
                     del entry_from_key[key]
@@ -838,14 +846,6 @@ class ModuleCache(object):
                             rmtree(root, ignore_nocleanup=True,
                                    msg='broken cache directory',
                                    level=logging.INFO)
-                        else:
-                            # This exception is often triggered by keys
-                            # that contain references to classes that have
-                            # not yet been imported (e.g. when running two
-                            # different Theano-based scripts). They are not
-                            # necessarily broken, but we cannot load them
-                            # now. They will be loaded later if needed.
-                            pass
                         continue
 
                     if not isinstance(key_data, KeyData):
@@ -957,9 +957,9 @@ class ModuleCache(object):
                 else:
                     too_old_to_use.append(entry)
 
-            # If the compilation failed, no key.pkl is in that
-            # directory, but a mod.* should be there.
-            # We do nothing here.
+                # If the compilation failed, no key.pkl is in that
+                # directory, but a mod.* should be there.
+                # We do nothing here.
 
         # Clean up the name space to prevent bug.
         del root, files, subdirs
@@ -1042,9 +1042,7 @@ class ModuleCache(object):
         else:
             assert key_data is not None
             name = key_data.get_entry()
-        if name is None:
-            return None
-        return self._get_module(name)
+        return None if name is None else self._get_module(name)
 
     def _get_from_hash(self, module_hash, key, keep_lock=False):
         if module_hash in self.module_hash_to_key_data:
@@ -1100,10 +1098,8 @@ class ModuleCache(object):
         key_pkl = os.path.join(location, 'key.pkl')
         assert not os.path.exists(key_pkl)
         key_data = KeyData(
-            keys=set([key]),
-            module_hash=module_hash,
-            key_pkl=key_pkl,
-            entry=name)
+            keys={key}, module_hash=module_hash, key_pkl=key_pkl, entry=name
+        )
 
         key_broken = False
         if key[0]:
@@ -1245,22 +1241,16 @@ class ModuleCache(object):
                             key_data = pickle.load(f)
                 time.sleep(2)
 
-        found = sum(key == other_key for other_key in key_data.keys)
         msg = ''
+        found = sum(key == other_key for other_key in key_data.keys)
         if found == 0:
             msg = 'Key not found in unpickled KeyData file'
-            if key_data.keys:
-                # This is to make debugging in pdb easier, by providing
-                # the offending keys in the local context.
-                # key_data_keys = list(key_data.keys)
-                # import pdb; pdb.set_trace()
-                pass
         elif found > 1:
             msg = 'Multiple equal keys found in unpickled KeyData file'
         if msg:
             raise AssertionError(
-                "%s. Verify the __eq__ and __hash__ functions of your "
-                "Ops. The file is: %s. The key is: %s" % (msg, key_pkl, key))
+                f"{msg}. Verify the __eq__ and __hash__ functions of your Ops. The file is: {key_pkl}. The key is: {key}"
+            )
         # Also verify that there exists no other loaded key that would be equal
         # to this key. In order to speed things up, we only compare to keys
         # with the same version part and config hash, since we can assume this
@@ -1381,7 +1371,7 @@ class ModuleCache(object):
         """
         with compilelock.lock_ctx():
             for base_dir in ('cutils_ext', 'lazylinker_ext', 'scan_perform'):
-                to_delete = os.path.join(self.dirname, base_dir + '.delete.me')
+                to_delete = os.path.join(self.dirname, f'{base_dir}.delete.me')
                 if os.path.isdir(to_delete):
                     try:
                         shutil.rmtree(to_delete)
@@ -1551,7 +1541,7 @@ def _rmtree(parent, ignore_nocleanup=False, msg='', level=logging.DEBUG,
         if ignore_nocleanup or not config.nocleanup:
             log_msg = 'Deleting'
             if msg:
-                log_msg += ' (%s)' % msg
+                log_msg += f' ({msg})'
             _logger.log(level, '%s: %s', log_msg, parent)
             shutil.rmtree(parent)
     except Exception as e:
@@ -1614,10 +1604,7 @@ def get_gcc_shared_library_arg():
     Return the platform-dependent GCC argument for shared libraries.
 
     """
-    if sys.platform == 'darwin':
-        return '-dynamiclib'
-    else:
-        return '-shared'
+    return '-dynamiclib' if sys.platform == 'darwin' else '-shared'
 
 
 def std_include_dirs():
@@ -1676,8 +1663,10 @@ def std_lib_dirs_and_libs():
                              r'EGG-INFO\mingw\usr\x86_64-w64-mingw32\lib')]
             for f, lib in [('libmsvcr90.a',
                             'mingw 4.5.2 or 4.8.1-2 (newer could work)')]:
-                if not any([os.path.exists(os.path.join(tmp_libdir, f))
-                            for tmp_libdir in libdirs]):
+                if not any(
+                    os.path.exists(os.path.join(tmp_libdir, f))
+                    for tmp_libdir in libdirs
+                ):
                     print(("Your Python version is from Canopy. " +
                            "You need to install the package '" + lib +
                            "' from Canopy package manager."
@@ -1685,17 +1674,12 @@ def std_lib_dirs_and_libs():
             python_lib_dirs.insert(0, libdir)
         std_lib_dirs_and_libs.data = [libname], python_lib_dirs
 
-    # Suppress -lpython2.x on OS X since the `-undefined dynamic_lookup`
-    # makes it unnecessary.
     elif sys.platform == 'darwin':
         std_lib_dirs_and_libs.data = [], []
     else:
         if platform.python_implementation() == 'PyPy':
             # Assume Linux (note: Ubuntu doesn't ship this .so)
-            if sys.version_info < (3,):
-                libname = "pypy-c"
-            else:
-                libname = "pypy3-c"
+            libname = "pypy-c" if sys.version_info < (3,) else "pypy3-c"
             # Unfortunately the only convention of this .so is that it appears
             # next to the location of the interpreter binary.
             libdir = os.path.dirname(os.path.realpath(sys.executable))
@@ -1800,10 +1784,7 @@ class Compiler(object):
             return False
         flags = list(flags)
         # Get compile arguments from compiler method if required
-        if comp_args:
-            args = cls.compile_args()
-        else:
-            args = []
+        args = cls.compile_args() if comp_args else []
         compilation_ok = True
         run_ok = False
         out, err = None, None
@@ -1838,18 +1819,15 @@ class Compiler(object):
                         os.remove(path)
                     if os.path.exists(exe_path):
                         os.remove(exe_path)
-                    if os.path.exists(exe_path + ".exe"):
-                        os.remove(exe_path + ".exe")
+                    if os.path.exists(f"{exe_path}.exe"):
+                        os.remove(f"{exe_path}.exe")
         except OSError as e:
-            if err is None:
-                err = str(e)
-            else:
-                err = str(err) + "\n" + str(e)
+            err = str(e) if err is None else str(err) + "\n" + str(e)
             compilation_ok = False
 
         if not try_run and not output:
             return compilation_ok
-        elif not try_run and output:
+        elif not try_run:
             return (compilation_ok, out, err)
         elif not output:
             return (compilation_ok, run_ok)
@@ -1908,7 +1886,7 @@ def try_march_flag(flags):
             }
             """)
 
-    cflags = flags + ['-L' + d for d in theano.gof.cmodule.std_lib_dirs()]
+    cflags = flags + [f'-L{d}' for d in theano.gof.cmodule.std_lib_dirs()]
     compilation_result, execution_result = GCC_compiler.try_compile_tmp(
         test_code, tmp_prefix='try_march_',
         flags=cflags, try_run=True)
@@ -1923,7 +1901,7 @@ class GCC_compiler(Compiler):
 
     @staticmethod
     def version_str():
-        return theano.config.cxx + " " + gcc_version_str
+        return f"{theano.config.cxx} {gcc_version_str}"
 
     @staticmethod
     def compile_args(march_flags=True):
