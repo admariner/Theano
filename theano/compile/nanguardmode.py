@@ -68,15 +68,14 @@ def flatten(l):
         A flattened list of objects.
 
     """
-    if isinstance(l, (list, tuple, ValuesView)):
-        rval = []
-        for elem in l:
-            if isinstance(elem, (list, tuple)):
-                rval.extend(flatten(elem))
-            else:
-                rval.append(elem)
-    else:
+    if not isinstance(l, (list, tuple, ValuesView)):
         return [l]
+    rval = []
+    for elem in l:
+        if isinstance(elem, (list, tuple)):
+            rval.extend(flatten(elem))
+        else:
+            rval.append(elem)
     return rval
 
 
@@ -163,7 +162,8 @@ def f_compute(op):
                                 mode=mode, profile=False)
             result.cache[key] = f
         return f(inp)
-    result.cache = dict()
+
+    result.cache = {}
     return result
 
 f_gpua_min = f_compute(T.min)

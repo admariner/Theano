@@ -6,7 +6,7 @@ import sys
 
 if sys.platform == 'win32':
     config_for_theano_cache_script = 'cxx=,device=cpu'
-    theano_flags = os.environ['THEANO_FLAGS'] if 'THEANO_FLAGS' in os.environ else ''
+    theano_flags = os.environ.get('THEANO_FLAGS', '')
     if theano_flags:
         theano_flags += ','
     theano_flags += config_for_theano_cache_script
@@ -22,7 +22,7 @@ _logger = logging.getLogger('theano.bin.theano-cache')
 
 def print_help(exit_status):
     if exit_status:
-        print('command "%s" not recognized' % (' '.join(sys.argv)))
+        print(f"""command "{' '.join(sys.argv)}" not recognized""")
     print('Type "theano-cache" to print the cache location')
     print('Type "theano-cache help" to print this help')
     print('Type "theano-cache clear" to erase the cache')
@@ -54,20 +54,18 @@ def main():
             cache.clear(unversioned_min_age=-1, clear_base_files=True,
                         delete_if_problem=True)
 
-            # Print a warning if some cached modules were not removed, so that the
-            # user knows he should manually delete them, or call
-            # theano-cache purge, # to properly clear the cache.
-            items = [item for item in sorted(os.listdir(cache.dirname))
-                     if item.startswith('tmp')]
-            if items:
+            if items := [
+                item
+                for item in sorted(os.listdir(cache.dirname))
+                if item.startswith('tmp')
+            ]:
                 _logger.warning(
                     'There remain elements in the cache dir that you may '
                     'need to erase manually. The cache dir is:\n  %s\n'
                     'You can also call "theano-cache purge" to '
                     'remove everything from that directory.' %
                     config.compiledir)
-                _logger.debug('Remaining elements (%s): %s' %
-                              (len(items), ', '.join(items)))
+                _logger.debug(f"Remaining elements ({len(items)}): {', '.join(items)}")
         elif sys.argv[1] == 'list':
             theano.gof.compiledir.print_compiledir_content()
         elif sys.argv[1] == 'cleanup':

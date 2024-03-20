@@ -77,8 +77,9 @@ class Test_SharedVariable(unittest.TestCase):
             SharedVariable(
                 name='u',
                 type=Tensor(broadcastable=[False], dtype='float64'),
-                value=dict(),  # not an array by any stretch
-                strict=False)
+                value={},
+                strict=False,
+            )
             assert 0
         except TypeError:
             pass

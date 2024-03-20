@@ -28,8 +28,7 @@ class PathParser(object):
     paths = set()
 
     def _add(self, path):
-        path = path.strip()
-        if path:
+        if path := path.strip():
             if sys.platform == 'win32':
                 # Windows is case-insensitive.
                 path = path.lower()

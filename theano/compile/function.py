@@ -244,19 +244,19 @@ def function(inputs, outputs=None, mode=None, updates=None, givens=None,
     if name is None:
         # Determine possible file names
         source_file = re.sub(r'\.pyc?', '.py', __file__)
-        compiled_file = source_file + 'c'
+        compiled_file = f'{source_file}c'
 
         stack = tb.extract_stack()
         idx = len(stack) - 1
 
         last_frame = stack[idx]
-        if (last_frame[0] == source_file or last_frame[0] == compiled_file):
+        if last_frame[0] in [source_file, compiled_file]:
             func_frame = stack[idx - 1]
             while "theano/gof" in func_frame[0] and idx > 0:
                 idx -= 1
                 # This can happen if we call var.eval()
                 func_frame = stack[idx - 1]
-            name = func_frame[0] + ':' + str(func_frame[1])
+            name = f'{func_frame[0]}:{str(func_frame[1])}'
 
     if updates is None:
         updates = []
@@ -265,16 +265,9 @@ def function(inputs, outputs=None, mode=None, updates=None, givens=None,
             not isinstance(updates, compat.OrderedDict) and
             len(updates) > 1):
         warnings.warn(
-            "The parameter 'updates' of theano.function()"
-            " expects an OrderedDict,"
-            " got " + str(type(updates)) + ". Using "
-            "a standard dictionary here results in "
-            "non-deterministic behavior. You should use an OrderedDict"
-            " if you are using Python 2.7 (theano.compat.OrderedDict"
-            " for older python), or use a list of (shared, update)"
-            " pairs. Do not just convert your dictionary to this type before"
-            " the call as the conversion will still be non-deterministic.",
-            stacklevel=2)
+            f"The parameter 'updates' of theano.function() expects an OrderedDict, got {str(type(updates))}. Using a standard dictionary here results in non-deterministic behavior. You should use an OrderedDict if you are using Python 2.7 (theano.compat.OrderedDict for older python), or use a list of (shared, update) pairs. Do not just convert your dictionary to this type before the call as the conversion will still be non-deterministic.",
+            stacklevel=2,
+        )
 
     if givens is None:
         givens = []
@@ -284,35 +277,36 @@ def function(inputs, outputs=None, mode=None, updates=None, givens=None,
                         "input.")
 
     # compute some features of the arguments:
-    uses_tuple = any([isinstance(i, (list, tuple)) for i in inputs])
+    uses_tuple = any(isinstance(i, (list, tuple)) for i in inputs)
+    if not uses_tuple:
+        # note: pfunc will also call orig_function -- orig_function is
+        #      a choke point that all compilation must pass through
+        return pfunc(
+            params=inputs,
+            outputs=outputs,
+            mode=mode,
+            updates=updates,
+            givens=givens,
+            no_default_updates=no_default_updates,
+            accept_inplace=accept_inplace,
+            name=name,
+            rebuild_strict=rebuild_strict,
+            allow_input_downcast=allow_input_downcast,
+            on_unused_input=on_unused_input,
+            profile=profile,
+            output_keys=output_keys,
+        )
+    # we must use old semantics in this case.
+    if profile:
+        raise NotImplementedError("profiling not supported in old-style "
+                                  "function")
     uses_updates = bool(updates)
     uses_givens = bool(givens)
 
-    if uses_tuple:
-        # we must use old semantics in this case.
-        if profile:
-            raise NotImplementedError("profiling not supported in old-style "
-                                      "function")
-        if uses_updates or uses_givens:
-            raise NotImplementedError(
-                "In() instances and tuple inputs trigger the old "
-                "semantics, which disallow using updates and givens")
-        fn = orig_function(inputs, outputs,
-                           mode=mode,
-                           accept_inplace=accept_inplace, name=name)
-    else:
-        # note: pfunc will also call orig_function -- orig_function is
-        #      a choke point that all compilation must pass through
-        fn = pfunc(params=inputs,
-                   outputs=outputs,
-                   mode=mode,
-                   updates=updates,
-                   givens=givens,
-                   no_default_updates=no_default_updates,
-                   accept_inplace=accept_inplace, name=name,
-                   rebuild_strict=rebuild_strict,
-                   allow_input_downcast=allow_input_downcast,
-                   on_unused_input=on_unused_input,
-                   profile=profile,
-                   output_keys=output_keys)
-    return fn
+    if uses_updates or uses_givens:
+        raise NotImplementedError(
+            "In() instances and tuple inputs trigger the old "
+            "semantics, which disallow using updates and givens")
+    return orig_function(
+        inputs, outputs, mode=mode, accept_inplace=accept_inplace, name=name
+    )

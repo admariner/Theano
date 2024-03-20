@@ -95,7 +95,7 @@ def infer_reuse_pattern(fgraph, outputs_to_disown):
     for o in outputs_to_disown:
         view_tree_set(alias_root(o), rval)
     # remove from rval all of the inputs, constants, values.
-    rval = set(r for r in rval if r.owner is not None)
+    rval = {r for r in rval if r.owner is not None}
 
     return rval
 
@@ -110,14 +110,16 @@ def fgraph_updated_vars(fgraph, expanded_inputs):
     dict variable -> variable
 
     """
-    updated_vars = {}
-    potential_values = list(fgraph.outputs)  # copy the list
     if len(expanded_inputs) != len(fgraph.inputs):
         raise ValueError('expanded_inputs must match len(fgraph.inputs)')
-    for e_input, ivar in reversed(list(zip(expanded_inputs, fgraph.inputs))):
-        if e_input.update is not None:
-            updated_vars[ivar] = potential_values.pop()
-    return updated_vars
+    potential_values = list(fgraph.outputs)  # copy the list
+    return {
+        ivar: potential_values.pop()
+        for e_input, ivar in reversed(
+            list(zip(expanded_inputs, fgraph.inputs))
+        )
+        if e_input.update is not None
+    }
 
 
 class Supervisor:
@@ -185,17 +187,21 @@ def std_fgraph(input_specs, output_specs, accept_inplace=False):
             if not accept_inplace:
                 raise TypeError("Graph must not contain inplace operations",
                                 node, node.op)
-            else:
-                fgraph.attach_feature(gof.DestroyHandler())
-                break
+            fgraph.attach_feature(gof.DestroyHandler())
+            break
 
     # We need to protect all immutable inputs from inplace operations.
     fgraph.attach_feature(
-        Supervisor(input
-                   for spec, input in zip(input_specs, fgraph.inputs)
-                   if not (spec.mutable or
-                           (hasattr(fgraph, 'destroyers') and
-                            fgraph.has_destroyers([input])))))
+        Supervisor(
+            input
+            for spec, input in zip(input_specs, fgraph.inputs)
+            if not spec.mutable
+            and (
+                not hasattr(fgraph, 'destroyers')
+                or not fgraph.has_destroyers([input])
+            )
+        )
+    )
 
     # If named nodes are replaced, keep the name
     for feature in std_fgraph.features:
@@ -412,8 +418,7 @@ class Function(object):
         # Initialize the storage
         # this loop works by modifying the elements (as variable c) of
         # self.input_storage inplace.
-        for i, ((input, indices, sinputs), (required, refeed, value)) in \
-                enumerate(zip(self.indices, defaults)):
+        for i, ((input, indices, sinputs), (required, refeed, value)) in enumerate(zip(self.indices, defaults)):
             if indices is None:
                 # containers is being used as a stack. Here we pop off
                 # the next one.
@@ -439,10 +444,7 @@ class Function(object):
                 c.provided = 0
                 finder[i] = c
                 finder[input.variable] = c
-                if input.name not in finder:
-                    finder[input.name] = c
-                else:
-                    finder[input.name] = DUPLICATE
+                finder[input.name] = c if input.name not in finder else DUPLICATE
                 if input.name is None:
                     n_unnamed_inputs += 1
                 else:
@@ -453,15 +455,14 @@ class Function(object):
         self.finder = finder
         self.inv_finder = inv_finder
 
-        # this class is important in overriding the square-bracket notation:
-        #     fn.value[x]
-        # self reference is available via the closure on the class
+
+
         class ValueAttribute(object):
             def __getitem__(self, item):
                 try:
                     s = finder[item]
                 except KeyError:
-                    raise TypeError("Unknown input or state: %s" % str(item))
+                    raise TypeError(f"Unknown input or state: {str(item)}")
                 if s is DUPLICATE:
                     raise TypeError("Ambiguous name: %s - please check the "
                                     "names of the inputs of your function "
@@ -477,8 +478,7 @@ class Function(object):
                 except KeyError:
                     # Print informative error message.
                     msg = get_info_on_inputs(named_inputs, n_unnamed_inputs)
-                    raise TypeError("Unknown input or state: %s. %s" %
-                                    (str(item), msg))
+                    raise TypeError(f"Unknown input or state: {str(item)}. {msg}")
                 if s is DUPLICATE:
                     raise TypeError("Ambiguous name: %s - please check the "
                                     "names of the inputs of your function "
@@ -492,9 +492,7 @@ class Function(object):
             def __contains__(self, item):
                 return finder.__contains__(item)
 
-        # this class is important in overriding the square-bracket notation:
-        #     fn.container[x]
-        # self reference is available via the closure on the class
+
         class ContainerAttribute(object):
             def __getitem__(self, item):
                 return finder[item]
@@ -624,8 +622,7 @@ class Function(object):
             # Check if given ShareVariables exist
             for sv in iterkeys(swap):
                 if sv not in exist_svs:
-                    raise ValueError("SharedVariable: %s not found" %
-                                     (sv.name))
+                    raise ValueError(f"SharedVariable: {sv.name} not found")
 
             # Swap SharedVariable in fgraph and In instances
             for index, (i, in_v) in enumerate(zip(ins, fg_cpy.inputs)):
@@ -677,7 +674,7 @@ class Function(object):
                     new_storage_map[memo[key]] = storage_map[key]
 
         if not name and self.name:
-            name = self.name + " copy"
+            name = f"{self.name} copy"
 
         input_storage = [i.value for i in ins]
         # reinitialize new maker and create new function
@@ -685,12 +682,9 @@ class Function(object):
             profile = config.profile or config.print_global_stats
             # profile -> True or False
         if profile is True:
-            if name:
-                message = name
-            else:
-                message = str(profile.message) + " copy"
+            message = name if name else f"{str(profile.message)} copy"
             profile = theano.compile.profiling.ProfileStats(message=message)
-            # profile -> object
+                # profile -> object
         elif type(profile) == str:
             profile = theano.compile.profiling.ProfileStats(message=profile)
 

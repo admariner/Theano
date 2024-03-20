@@ -434,10 +434,7 @@ def pfunc(params, outputs=None, mode=None, updates=None, givens=None,
     if outputs is None:
         out_list = []
     else:
-        if isinstance(outputs, (list, tuple)):
-            out_list = list(outputs)
-        else:
-            out_list = [outputs]
+        out_list = list(outputs) if isinstance(outputs, (list, tuple)) else [outputs]
     extended_outputs = out_list + additional_outputs
 
     output_vars = rebuild_collect_shared(extended_outputs,
@@ -454,11 +451,10 @@ def pfunc(params, outputs=None, mode=None, updates=None, givens=None,
     # Recover only the clones of the original outputs
     if outputs is None:
         cloned_outputs = []
+    elif isinstance(outputs, (list, tuple)):
+        cloned_outputs = cloned_extended_outputs[:len(outputs)]
     else:
-        if isinstance(outputs, (list, tuple)):
-            cloned_outputs = cloned_extended_outputs[:len(outputs)]
-        else:
-            cloned_outputs = cloned_extended_outputs[0]
+        cloned_outputs = cloned_extended_outputs[0]
 
     for i, iv in zip(inputs, input_variables):
         i.variable = iv
@@ -493,7 +489,7 @@ def _pfunc_param_to_in(param, strict=False, allow_downcast=None):
         return In(variable=param, strict=strict, allow_downcast=allow_downcast)
     elif isinstance(param, In):
         return param
-    raise TypeError('Unknown parameter type: %s' % type(param))
+    raise TypeError(f'Unknown parameter type: {type(param)}')
 
 
 def iter_over_pairs(pairs):
@@ -513,7 +509,4 @@ def iter_over_pairs(pairs):
         An iterable yielding pairs.
 
     """
-    if isinstance(pairs, dict):
-        return iteritems(pairs)
-    else:
-        return pairs
+    return iteritems(pairs) if isinstance(pairs, dict) else pairs

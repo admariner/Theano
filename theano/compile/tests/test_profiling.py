@@ -40,7 +40,7 @@ class Test_profiling(unittest.TestCase):
             f = theano.function(x, z, profile=p, name="test_profiling",
                                 mode=m)
 
-            inp = [np.arange(1024, dtype='float32') + 1 for i in range(len(x))]
+            inp = [np.arange(1024, dtype='float32') + 1 for _ in range(len(x))]
             f(*inp)
 
             buf = StringIO()
